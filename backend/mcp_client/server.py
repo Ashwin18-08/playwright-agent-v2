@@ -56,7 +56,12 @@ def _ensure_pw_project(cwd: str, npx: str) -> None:
                 "import { defineConfig } from '@playwright/test';\n"
                 "export default defineConfig({\n"
                 "  testDir: './tests',\n"
-                "  use: { headless: true },\n"
+                "  timeout: 60000,\n"
+                "  expect: { timeout: 10000 },\n"
+                "  use: {\n"
+                "    headless: true,\n"
+                "    actionTimeout: 15000,\n"
+                "  },\n"
                 "});\n"
             )
 

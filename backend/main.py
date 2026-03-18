@@ -67,10 +67,35 @@ async def ws_generator(request: web.Request) -> web.WebSocketResponse:
         f"Generate Playwright tests from the following test plan.\n\n"
         f"## Test plan\n\n{spec}\n\n"
         f"## Target URL\n{url}\n\n"
-        f"Use browser tools to verify locators, then write and run the tests."
+        f"Start by calling generator_setup_page with no arguments, "
+        f"then navigate to {url} and verify a few key locators. "
+        f"Output the test files using ### FILE: headers."
     )
 
-    await _run_agent_ws(ws, GeneratorAgent(), prompt, max_iter)
+    generator_output = ""
+    try:
+        agent = GeneratorAgent()
+        async for event in agent.run(prompt, max_iter):
+            await ws.send_json({"kind": event.kind, **event.data})
+            if event.kind == "output":
+                generator_output = event.data.get("text", "")
+
+        # Write files to disk
+        if generator_output:
+            from graph.pipeline import _write_generated_files
+            written = _write_generated_files(generator_output)
+            await ws.send_json({
+                "kind": "files_written",
+                "files": written,
+                "message": f"Wrote {len(written)} file(s) to disk",
+            })
+
+        await ws.send_json({"kind": "done"})
+    except Exception as exc:
+        log.error("generator.error", err=str(exc))
+        if not ws.closed:
+            await ws.send_json({"kind": "error", "message": str(exc)})
+
     return ws
 
 

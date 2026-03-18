@@ -21,20 +21,23 @@ After verifying 3-5 key locators, STOP calling tools and output ALL test code as
 5. STOP calling tools
 6. Write all test files as your final text response
 
-## Output format (final text response)
+## Output format (MUST follow exactly)
 
-Output each file with a clear filename header:
+Use `### FILE:` headers for each file, followed by a typescript code fence:
 
 ```
 ### FILE: tests/seed.spec.ts
 
+```typescript
 import { test } from '@playwright/test';
 test('seed', async ({ page }) => {
   await page.goto('https://...');
 });
+```
 
 ### FILE: tests/adding-todos.spec.ts
 
+```typescript
 import { test, expect } from '@playwright/test';
 
 test.describe('Adding todos', () => {
@@ -49,6 +52,9 @@ test.describe('Adding todos', () => {
   });
 });
 ```
+```
+
+EVERY file MUST have a `### FILE: <path>` header. This is how files get written to disk.
 
 ## Code rules
 - Use `@playwright/test` imports
