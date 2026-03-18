@@ -113,6 +113,11 @@ class BaseAgent:
             "tool_names": [t["name"] for t in (self._tools or [])],
         })
 
+        # Track recent tool calls to detect loops
+        recent_calls: list[str] = []
+        LOOP_WINDOW = 5       # check last N calls
+        LOOP_THRESHOLD = 3    # if same call appears this many times, force stop
+
         for iteration in range(1, max_iter + 1):
             log.info(f"{self.agent_name}.iteration", i=iteration)
 
@@ -120,6 +125,17 @@ class BaseAgent:
                 "agent": self.agent_name,
                 "iteration": iteration,
             })
+
+            # ── Nudge LLM to finish when approaching limit ──
+            if iteration == max_iter - 3:
+                messages.append(HumanMessage(
+                    content=(
+                        "IMPORTANT: You are running low on iterations. "
+                        "Finish your exploration and respond with your final "
+                        "text output within the next 2-3 iterations. "
+                        "Do NOT call more tools unless absolutely necessary."
+                    )
+                ))
 
             # ── LLM call ─────────────────────────────────
             response: AIMessage = await self._llm.ainvoke(messages)
@@ -146,6 +162,33 @@ class BaseAgent:
                 tool_name = tc["name"]
                 tool_args = tc.get("args", {})
                 tool_id = tc.get("id", "")
+
+                # ── Loop detection ───────────────────────
+                call_sig = f"{tool_name}:{json.dumps(tool_args, sort_keys=True)}"
+                recent_calls.append(call_sig)
+                if len(recent_calls) > LOOP_WINDOW:
+                    recent_calls.pop(0)
+
+                # Count duplicates in the window
+                dupes = sum(1 for c in recent_calls if c == call_sig)
+                if dupes >= LOOP_THRESHOLD:
+                    log.warning(f"{self.agent_name}.loop_detected",
+                                tool=tool_name, dupes=dupes)
+                    yield AgentEvent("loop_detected", {
+                        "agent": self.agent_name,
+                        "tool": tool_name,
+                        "message": f"Tool {tool_name} called {dupes} times with same args — forcing stop. Respond with your output now.",
+                    })
+                    # Inject a message telling the LLM to stop
+                    messages.append(ToolMessage(
+                        content=(
+                            f"STOP: You have called {tool_name} with the same arguments "
+                            f"{dupes} times. This is a loop. Do NOT call any more tools. "
+                            f"Instead, respond with your final text output NOW."
+                        ),
+                        tool_call_id=tool_id,
+                    ))
+                    continue  # skip executing, force LLM to respond
 
                 yield AgentEvent("tool_call", {
                     "agent": self.agent_name,
