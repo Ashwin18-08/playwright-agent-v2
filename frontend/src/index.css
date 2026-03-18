@@ -1,0 +1,21 @@
+*, *::before, *::after { box-sizing: border-box; }
+body { margin: 0; -webkit-font-smoothing: antialiased; background: #08090c; }
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #2d3148; border-radius: 2px; }
+
+input:focus, textarea:focus {
+  border-color: #818cf8 !important;
+  box-shadow: 0 0 0 2px rgba(129, 140, 248, 0.1);
+}
+
+button:hover { filter: brightness(1.15); }
+button:active { transform: scale(0.98); }
+
+::selection { background: #818cf8; color: #fff; }
