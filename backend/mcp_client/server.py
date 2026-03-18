@@ -25,6 +25,42 @@ def _find_npx() -> str:
     return "npx"
 
 
+def _ensure_pw_project(cwd: str, npx: str) -> None:
+    """Auto-create minimal Playwright project if it doesn't exist.
+    Only needs package.json + @playwright/test + playwright.config.ts.
+    Everything else (specs/, tests/, seed.spec.ts) is created by the
+    agents through MCP tools — we don't touch those.
+    """
+    os.makedirs(cwd, exist_ok=True)
+
+    pkg = os.path.join(cwd, "package.json")
+    if not os.path.exists(pkg):
+        log.info("mcp.setup", msg="Creating package.json")
+        with open(pkg, "w") as f:
+            f.write('{"devDependencies":{"@playwright/test":"latest"}}')
+
+    node_modules = os.path.join(cwd, "node_modules")
+    if not os.path.exists(node_modules):
+        log.info("mcp.setup", msg="Running npm install...")
+        npm = shutil.which("npm.cmd" if IS_WINDOWS else "npm") or ("npm.cmd" if IS_WINDOWS else "npm")
+        import subprocess
+        subprocess.run([npm, "install"], cwd=cwd, capture_output=True)
+        log.info("mcp.setup", msg="Installing chromium...")
+        subprocess.run([npx, "playwright", "install", "chromium"], cwd=cwd, capture_output=True)
+
+    config = os.path.join(cwd, "playwright.config.ts")
+    if not os.path.exists(config):
+        log.info("mcp.setup", msg="Creating playwright.config.ts")
+        with open(config, "w") as f:
+            f.write(
+                "import { defineConfig } from '@playwright/test';\n"
+                "export default defineConfig({\n"
+                "  testDir: './tests',\n"
+                "  use: { headless: true },\n"
+                "});\n"
+            )
+
+
 class PlaywrightTestMCP:
     """Manages the Playwright Test MCP server child process."""
 
@@ -37,9 +73,10 @@ class PlaywrightTestMCP:
         s = get_settings()
         npx = _find_npx()
 
-        # The MCP server runs inside the Playwright project directory
         cwd = os.path.abspath(s.playwright_project_path)
-        os.makedirs(cwd, exist_ok=True)
+
+        # Auto-setup: ensure minimal Playwright project exists
+        _ensure_pw_project(cwd, npx)
 
         log.info("mcp.spawning",
                  command=f"{npx} playwright run-test-mcp-server",
